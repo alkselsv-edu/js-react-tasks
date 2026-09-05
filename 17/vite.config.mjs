@@ -1,15 +1,7 @@
-const path = require("path");
-const HtmlWebpackPlugin = require("html-webpack-plugin");
-const { setMaxListeners } = require("events");
+import { defineConfig } from 'vite';
+import react from '@vitejs/plugin-react';
 
-const isProduction = process.env.NODE_ENV == "production";
-
-const getAutoComplete = (devServer) => {
-  devServer.app.get("/countries", function (req, res) {
-    const search = req.query["term"];
-
-    // Define a list of countries (only three countries)
-    const countries = [
+const countries = [
       "Afghanistan",
       "Albania",
       "Algeria",
@@ -234,52 +226,32 @@ const getAutoComplete = (devServer) => {
       "Zimbabwe",
     ];
 
-    // Filter the countries that begin with the search string
-    if (search.length > 0) {
-      const filteredCountries = countries.filter((country) =>
-        country.toLowerCase().startsWith(search.toLowerCase())
-      );
-      res.json(filteredCountries);
-    } else {
-      res.json("");
-    }
-  });
-};
-
-const config = {
-  entry: "./src/index.jsx",
-  output: {
-    path: path.resolve(__dirname, "dist"),
-  },
-  devServer: {
+export default defineConfig({
+  plugins: [react()],
+  server: {
     open: true,
-    host: "localhost",
-    onBeforeSetupMiddleware: getAutoComplete,
-  },
-  plugins: [
-    new HtmlWebpackPlugin({
-      template: "index.html",
-    }),
-  ],
-  module: {
-    rules: [
-      {
-        test: /\.(js|jsx)$/i,
-        loader: "babel-loader",
-      },
-      {
-        test: /\.(eot|svg|ttf|woff|woff2|png|jpg|gif)$/i,
-        type: "asset",
-      },
-    ],
-  },
-};
+    host: 'localhost',
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        if (req.method !== 'GET' || !req.url?.startsWith('/countries')) {
+          next();
+          return;
+        }
 
-module.exports = () => {
-  if (isProduction) {
-    config.mode = "production";
-  } else {
-    config.mode = "development";
-  }
-  return config;
-};
+        const search = new URL(req.url, 'http://localhost').searchParams.get('term') || '';
+
+        if (search.length > 0) {
+          const filteredCountries = countries.filter((country) =>
+            country.toLowerCase().startsWith(search.toLowerCase()),
+          );
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(filteredCountries));
+          return;
+        }
+
+        res.setHeader('Content-Type', 'application/json');
+        res.end(JSON.stringify(''));
+      });
+    },
+  },
+});
